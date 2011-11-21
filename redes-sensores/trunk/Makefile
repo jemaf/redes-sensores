@@ -1,0 +1,2 @@
+COMPONENT=SensorReaderAppC
+include $(MAKERULES)
