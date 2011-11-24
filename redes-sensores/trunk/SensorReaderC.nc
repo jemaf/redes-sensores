@@ -3,7 +3,7 @@
 module SensorReaderC @safe(){
 
 	uses interface Boot;
-	//uses interface Timer<TMilli> as startTimer;
+	uses interface Timer<TMilli> as startTimer;
   	uses interface Packet;
   	uses interface AMPacket;
   	uses interface AMSend;
@@ -20,6 +20,7 @@ implementation {
 	message_t pkt;	//pacote que sera utilizado para reenvio
 	uint16_t lastmsg; //id da ultima mensagem
 	
+	bool isInitialized = FALSE;
 
 	event void Boot.booted() {
 		
@@ -27,12 +28,19 @@ implementation {
 		parent = -1;
 		
 		call AMControl.start();
-		call Leds.led0Toggle();	//mostra que o nodo esta em operacao
-		//call startTime.startOneShot(50);
+		
+		//mostra que o sensor esta em operacao
+		call Leds.led0On(); //liga as luzes
+  		call Leds.led1On();
+  		call Leds.led2On(); 
+		call startTimer.startOneShot(100); //desligar as luzes
 	}
 	
-//	event void startTime.fired() {
-//	}
+	event void startTimer.fired() {
+		call Leds.led0Off();	//desliga a luz dos leds
+		call Leds.led1Off();	
+		call Leds.led2Off();
+	}
 	
 	event void AMControl.startDone(error_t err) {
   	}
@@ -65,9 +73,7 @@ implementation {
 	  			
 	  			//TODO: enviar os dados coletados para o pai 			 		
 	  		}
-  		} 		
-  	
-  	
+  		} 		 	
   	}
 
 }

@@ -3,7 +3,7 @@
 
 enum {
 
-	AM_SENSORREADER = 6,
+	AM_SENSORREADERMSG = 6,
 	TIMER_TO_SEND = 1000
 };
 
