@@ -13,9 +13,14 @@
 
 #define MESSAGE_BUFFER_SIZE 100
 
+enum {
+	AM_SENSORREADERMSG = 6;
+}
+
 typedef nx_struct SensorPackageMessage {
    nx_uint16_t messageType;
    nx_uint16_t nodeId;
+   am_addr_t nodeAddress;
    nx_uint16_t typeOfData;
    MessageData data;
 } Message;
