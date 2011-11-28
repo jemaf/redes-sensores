@@ -1,4 +1,4 @@
-#include "SensorReader.h"
+#include "SensorInterface.h"
 
 configuration SensorAppC {
 }
