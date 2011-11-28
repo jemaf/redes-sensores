@@ -11,11 +11,23 @@ module SensorC @safe(){
 implementation {
 
 	uint16_t myId;
+	int messageBuffer[MESSAGE_BUFFER_SIZE];
+	int lastBufferIndexUsed;
 
 	// Inicializa o componente
 	event void Boot.booted() {
 		myId = TOS_NODE_ID;
 		call AMControl.start();
+		initMessageBuffer();
+	}
+
+	void initMessageBuffer() {
+		int i = 0;
+		for (; i < MESSAGE_BUFFER_SIZE; i++) {
+			messageBuffer[i] = -1;
+		}
+
+		lastBufferIndexUsed = -1;
 	}
 	
 	event void AMControl.startDone(error_t err) {
@@ -29,57 +41,82 @@ implementation {
   	
   	event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
   	
-  		Message* packet = (Message*)payload;	//recupera o pacote que foi recebido
-		if (message->destinationNodeId == myId) {
-			decodeMessage(packet);
-		}
+  		Message* message = (Message*)payload;	//recupera o pacote que foi recebido
+
+		decodeMessage(packet);
   		
   	}
 
 	void decodeMessage(Message* message) {
-		if (message->messageType == REQUEST_MESSAGE) {
-			answerRequestMessage(message);
+		if (packetAlreadyReceived(message) == 0) {
+			if (message->messageType == REQUEST_MESSAGE) {
+				answerRequestMessage(message);
+			}
+			broadcastMessage(message);
+		}
+	}
 
-		} else if (message->messageType == DATA_MESSAGE) {
-			if (message->data.message != NULL) {
-				answerDataMessage(message);
-			} else {
-				// Recebeu a mensagem
+	void broadcastMessage(Message* message) {
+	}
+
+	int getMessageId(Message* message) {
+		return message->packetId * 2 + message->messageType;
+	}
+
+	int packetAlreadyReceived(Message* message) {
+		int messageId = getMessageId(message);
+		int i = 0;
+		for (; i < MESSAGE_BUFFER_SIZE; i++) {
+			if (bufferMessage[i] == messageId) {
+				return 1;
 			}
 		}
+		return 0;
 	}
 
 	void answerRequestMessage(Message* message) {
 		// Resposta com os dados solicitados
-		// TODO criar verificacao com buffer para nao responder mensagens repetidas
-		Message* dataMessage = createMessage(DATA_MESSAGE, myId, message->nodeId, message->typeOfData, message->data.message, getSensorValue(message->typeOfData));
+		Message* dataMessage = createMessage(message->packetId, DATA_MESSAGE, myId, message->destinationNodeId, message->typeOfData, getSensorValue(message->typeOfData));
 		call AMSend.send(AM_BROADCAST_ADDR, dataMessage, sizeof(Message));
 
-		//Broadcast da mensagem
-		Message* broadcastMessage = createMessage(REQUEST_MESSAGE, myId, myId, message->typeOfData, *message, NULL);
-		call AMSend.send(AM_BROADCAST_ADDR, broadcastMessage, sizeof(Message));
+		insertMessageInBuffer(dataMessage);
 	}
 
-	void answerDataMessage(Message* message) {
-		if (message->data.message != NULL) {
-			Message insideMessage = message->data.message;
-			Message* forwardMessage = createMessage(DATA_MESSAGE, message->nodeId, message->destinationNodeId, message->typeOfData, insideMessage.data.message, message->value);
-
-			call AMSend.send(AM_BROADCAST_ADDR, forwardMessage, sizeof(Message));
-		} else {
-			// Recebeu mensagem
+	void broadcastMessage(Message* message) {
+		nx_uint16_t nodeId;
+		if (message->messageType == REQUEST_MESSAGE) {
+			nodeId = myId;
+		} else if (message->messageType == DATA_MESSAGE) {
+			nodeId = message->nodeId;
 		}
+
+		Message* forwardMessage = createMessage(message->packetId, message->messageType, nodeId, message->destinationNodeId, message->typeOfData, message->value);
+
+		call AMSend.send(AM_BROADCAST_ADDR, forwardMessage, sizeof(Message));
+		insertMessageInBuffer(forwardMessage);
 	}
 
-	Message* createMessage(nx_uint16_t messageType, nx_uint16_t nodeId, nx_uint16_t destinationNodeId, nx_uint16_t typeOfData, Message message, nx_uint16_t value) {
+	Message* createMessage(nx_uint16_t packetId, nx_uint16_t messageType, nx_uint16_t nodeId, nx_uint16_t destinationNodeId, nx_uint16_t typeOfData, nx_uint16_t value) {
 		Message newMessage;
+		newMessage.packetId = packetId;
 		newMessage.messageType = messageType;
 		newMessage.nodeId = nodeId;
 		newMessage.destinationNodeId = destinationNodeId;
 		newMessage.typeOfData = typeOfData;
-		newMessage.data.message = message;
-		newMessage.data.value = value;
+		newMessage.value = value;
 		return &newMessage;
+	}
+
+	void insertMessageInBuffer(Message* message) {
+		int index = getNextBufferIndex();
+		messageBuffer[index] = getMessageId(message);
+	}
+
+	int getNextBufferIndex() {
+		if (lastBufferIndexUsed >= MESSAGE_BUFFER_SIZE) {
+			lastBufferIndexUsed = -1;
+		}
+		return ++lastBufferIndexUsed;
 	}
 
 	nx_uint16t getSensorValue(nx_uint16t typeOfSensor) {
