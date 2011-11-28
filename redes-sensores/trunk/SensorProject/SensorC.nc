@@ -10,11 +10,11 @@ module SensorC @safe(){
 
 implementation {
 
-	uint16_t nodeId;
+	uint16_t myId;
 
 	// Inicializa o componente
 	event void Boot.booted() {
-		nodeId = TOS_NODE_ID;
+		myId = TOS_NODE_ID;
 		call AMControl.start();
 	}
 	
@@ -30,7 +30,9 @@ implementation {
   	event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
   	
   		Message* packet = (Message*)payload;	//recupera o pacote que foi recebido
-		decodeMessage(packet);
+		if (message->destinationNodeId == myId) {
+			decodeMessage(packet);
+		}
   		
   	}
 
@@ -50,31 +52,30 @@ implementation {
 	void answerRequestMessage(Message* message) {
 		// Resposta com os dados solicitados
 		// TODO criar verificacao com buffer para nao responder mensagens repetidas
-		// TODO descobrir como colocar aqui o endereco do nó em nodeAddress
-		Message* dataMessage = createMessage(DATA_MESSAGE, nodeId, nodeAddress, message->typeOfData, message->data.message, getSensorValue(message->typeOfData));
-		call AMSend.send(message->nodeAddress, dataMessage, sizeof(Message));
+		Message* dataMessage = createMessage(DATA_MESSAGE, myId, message->nodeId, message->typeOfData, message->data.message, getSensorValue(message->typeOfData));
+		call AMSend.send(AM_BROADCAST_ADDR, dataMessage, sizeof(Message));
 
 		//Broadcast da mensagem
-		Message* broadcastMessage = createMessage(REQUEST_MESSAGE, nodeId, nodeAddress, message->typeOfData, *message, NULL);
+		Message* broadcastMessage = createMessage(REQUEST_MESSAGE, myId, myId, message->typeOfData, *message, NULL);
 		call AMSend.send(AM_BROADCAST_ADDR, broadcastMessage, sizeof(Message));
 	}
 
 	void answerDataMessage(Message* message) {
 		if (message->data.message != NULL) {
 			Message insideMessage = message->data.message;
-			Message* forwardMessage = createMessage(DATA_MESSAGE, message->nodeId, message->nodeAddress, message->typeOfData, insideMessage.data.message, message->value);
+			Message* forwardMessage = createMessage(DATA_MESSAGE, message->nodeId, message->destinationNodeId, message->typeOfData, insideMessage.data.message, message->value);
 
-			call AMSend.send(insideMessage.nodeAddress, forwardMessage, sizeof(Message));
+			call AMSend.send(AM_BROADCAST_ADDR, forwardMessage, sizeof(Message));
 		} else {
 			// Recebeu mensagem
 		}
 	}
 
-	Message* createMessage(nx_uint16_t messageType, nx_uint16_t nodeId, am_addr_t nodeAddress, nx_uint16_t typeOfData, Message message, nx_uint16_t value) {
+	Message* createMessage(nx_uint16_t messageType, nx_uint16_t nodeId, nx_uint16_t destinationNodeId, nx_uint16_t typeOfData, Message message, nx_uint16_t value) {
 		Message newMessage;
 		newMessage.messageType = messageType;
 		newMessage.nodeId = nodeId;
-		newMessage.nodeAddress = nodeAddress;
+		newMessage.destinationNodeId = destinationNodeId;
 		newMessage.typeOfData = typeOfData;
 		newMessage.data.message = message;
 		newMessage.data.value = value;

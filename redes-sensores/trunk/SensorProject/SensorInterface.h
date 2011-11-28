@@ -20,7 +20,7 @@ enum {
 typedef nx_struct SensorPackageMessage {
    nx_uint16_t messageType;
    nx_uint16_t nodeId;
-   am_addr_t nodeAddress;
+   nx_uint16_t destinationNodeId;
    nx_uint16_t typeOfData;
    MessageData data;
 } Message;
