@@ -11,6 +11,54 @@ public class SensorBase {
     public static Integer timeCycle = 5;
     private static List<SensorType> sensorList = new ArrayList<SensorType>();
 
+    //enum com dados da conversao de temperatura da placa sensora mts420
+    public enum Temperature {
+	
+	//sensor voltage
+    	FIVE (-40.1, -40.2),
+    	FOUR (-39.8, -39.6),
+    	THREEdFIVE (-39.7, -39.5),
+    	THREE (-39.6, -39.3),
+    	TWOdFIVE (-39.4, -38.9),
+	
+	//sensor bits
+	FOUTEENBITS (0.01, 0.018),
+    	TWELVEBITS (0.04, 0.072);
+	
+	private final double C; //celsius
+	private final double F; //fahrenheit
+	
+	private Temperature(double C, double F) {
+	    this.C = C;
+	    this.F = F;
+	}
+	
+	public double getC() { return C; }
+	public double getF() {return F; }
+    }
+    
+    //enum com dados da conversao de humidade da placa snesora mts420
+    public enum RelativeHumidity {
+	
+	//sensor bits
+	EIGHTBITS (-2.0468, 0.0367, -1.5955e-6),
+    	TWELVEBITS (-2.0468, 0.5872, -4.0845e-4);
+	
+	private final double C1, C2, C3;
+	
+	private RelativeHumidity(double C1, double C2, double C3) {
+	    this.C1 = C1;
+	    this.C2 = C2;
+	    this.C3 = C3;
+	}
+	
+	public double getC1() { return C1; }
+	public double getC2() { return C2; }
+	public double getC3() { return C3; }
+    }
+    
+    
+    
     public static void main(String args[]) throws Exception{
         if (args.length < 3) {
             printHelpMenu();
@@ -175,7 +223,7 @@ public class SensorBase {
                 }
 
                 if (message.get_messageType() == SensorBase.DATA_MESSAGE) {
-                    System.out.println(String.format("Recebida resposta da solicitacao %s, vinda do no %s, medindo o valor %s de %s", message.get_packetId(), message.get_nodeId(), decodeValue(message.get_value(), typeOfMessage), typeOfMessage.getDescription()));
+                    System.out.println(String.format("Recebida resposta da solicitacao %s, vinda do no %s, medindo o valor %s de %s", message.get_packetId(), message.get_nodeId(), decodeValue((double)message.get_value(), typeOfMessage), typeOfMessage.getDescription()));
                 } else if (message.get_messageType() == SensorBase.REQUEST_MESSAGE) {
                 	System.out.println("Pacote: " + message.get_packetId() + " request recebido");
                     // Nao faz nada quando recebe uma requisicao de leitura
@@ -186,12 +234,15 @@ public class SensorBase {
             }
         }
 
-        private Integer decodeValue(int value, SensorType sensorType) {
+        private Double decodeValue(Double value, SensorType sensorType) {
+	    
+	    //supondo parametros 12bits, 3.5v
+	    
             switch (sensorType) {
-                case TEMPERATURE_DATA:
-                    return value;
-                case LIGHTNESS_DATA:
-                    return value;
+                case TEMPERATURE_DATA:	//T = volt + bits * SO
+                    return Temperature.THREEdFIVE.getC() + Temperature.TWELVEBITS.getC() * value;
+                case LIGHTNESS_DATA: // RH = c1 + c2 * SO + c3 * SO^2
+                    return RelativeHumidity.TWELVEBITS.getC1() + RelativeHumidity.TWELVEBITS.getC2() * value + RelativeHumidity.TWELVEBITS.getC1() * Math.pow(value,2);
                 case MOISTURE_DATA:
                     return value;
                 case LOCALITY_DATA:
