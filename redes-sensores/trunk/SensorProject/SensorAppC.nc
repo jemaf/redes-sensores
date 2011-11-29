@@ -10,6 +10,8 @@ implementation {
   components new AMSenderC(AM_SENSORREADERMSG);
   components new AMReceiverC(AM_SENSORREADERMSG);
   components ActiveMessageC;
+  // sensores
+  components new DemoSensorC() as Sensor;
 
   App.Boot -> MainC;
   App.AMSend -> AMSenderC;
@@ -17,5 +19,6 @@ implementation {
   App.AMControl -> ActiveMessageC;
   App.Packet -> AMSenderC;
   App.AMPacket -> AMSenderC;
-
+  App.ReadTemperature -> Sensor.Temperature;
+  App.ReadHumidity -> Sensor.Humidity;
 }

@@ -1,11 +1,11 @@
 COMPONENT=SensorAppC
 
-BUILD_EXTRA_DEPS=RootNode.class
+BUILD_EXTRA_DEPS=SensorPackage.class
 
-RootNode.class: RootNode.java
-	javac RootNode.java
+SensorPackage.class: SensorPackage.java
+	javac SensorPackage.java
 	
-RootNode.java:
-	mig java -target=null -java-classname=RootNode SensorInterface.h SensorPackageMessage -o $@
+SensorPackage.java:
+	mig java -target=null -java-classname=SensorPackage SensorInterface.h SensorPackageMessage -o $@
 
 include $(MAKERULES)

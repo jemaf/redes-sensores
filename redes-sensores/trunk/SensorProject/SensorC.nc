@@ -7,6 +7,8 @@ module SensorC @safe(){
   	uses interface SplitControl as AMControl;
   	uses interface AMPacket;
   	uses interface Packet;
+	uses interface Read<uint16_t> as ReadTemperature;
+	uses interface Read<uint16_t> as ReadHumidity;
 }
 
 implementation {
@@ -14,6 +16,9 @@ implementation {
 	uint16_t myId;
 	int messageBuffer[MESSAGE_BUFFER_SIZE];
 	int lastBufferIndexUsed;
+        Message* lastMessage;
+	error_t lastReadResult;
+	uint16_t lastReadData;
 
 	int getNextBufferIndex() {
 		if (lastBufferIndexUsed >= MESSAGE_BUFFER_SIZE) {
@@ -22,15 +27,16 @@ implementation {
 		return ++lastBufferIndexUsed;
 	}
 
-	nx_uint16_t getSensorValue(nx_uint16_t typeOfSensor) {
+	void getSensorValue(nx_uint16_t typeOfSensor) {
 		// TODO Criar chamadas para os componentes de sensoriamento
 		if (typeOfSensor == TEMPERATURE_DATA) {
+			call ReadTemperature.read();
 		} else if (typeOfSensor == LIGHTNESS_DATA) {
 		} else if (typeOfSensor == MOISTURE_DATA) {
+			call ReadHumidity.read();
 		} else if (typeOfSensor == LOCALITY_DATA) {
 		} else if (typeOfSensor == PRESSURE_DATA) {
 		}
-		return 0;
 	}
 
 	message_t* getMessage(Message* message) {
@@ -90,11 +96,15 @@ implementation {
 	}
 
 	void answerRequestMessage(Message* message) {
+		// calcula o valor de leitura
+		getSensorValue(message->typeOfData);
 		// Resposta com os dados solicitados
-		Message* dataMessage = createMessage(message->packetId, DATA_MESSAGE, myId, message->destinationNodeId, message->typeOfData, getSensorValue(message->typeOfData));
-		call AMSend.send(AM_BROADCAST_ADDR, getMessage(dataMessage), sizeof(Message));
+		if (lastReadResult == SUCCESS) {
+			Message* dataMessage = createMessage(message->packetId, DATA_MESSAGE, myId, message->destinationNodeId, message->typeOfData, lastReadData);
+			call AMSend.send(AM_BROADCAST_ADDR, getMessage(dataMessage), sizeof(Message));
 
-		insertMessageInBuffer(dataMessage);
+			insertMessageInBuffer(dataMessage);
+		}
 	}
 
 	void broadcastMessage(Message* message) {
@@ -140,9 +150,21 @@ implementation {
   	
   	event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
   	
-  		Message* message = (Message*)payload;	//recupera o pacote que foi recebido
+  		lastMessage = (Message*)payload;	//recupera o pacote que foi recebido
 
-		decodeMessage(message);
+		decodeMessage(lastMessage);
   		
   	}
+
+	event void ReadTemperature.readDone(error_t result, uint16_t data)
+	{
+		lastReadResult = result;
+		lastReadData = data;
+	}
+	
+	event void ReadHumidity.readDone(error_t result, uint16_t data)
+	{
+		lastReadResult = result;
+		lastReadData = data;
+	}
 }
