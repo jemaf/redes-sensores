@@ -75,6 +75,9 @@ public class SensorBase {
                     case 'v':
                         timeCycle = decodeStringIntoInt(argument.substring(2));
                         break;
+                    case 'l':
+                        sensorList.add(SensorType.LIGHTNESS_DATA);
+                        break;
                     case 't':
                         sensorList.add(SensorType.TEMPERATURE_DATA);
                         break;
@@ -104,6 +107,7 @@ public class SensorBase {
                            "-iX -> (Obrigatorio) Inicializa o no com identificar inteiro X\n" +
                            "-nY -> Inicializa a base com o numero de Y interacoes\n" +
                            "-vZ -> Inicializa o no com tempo de rotacao de Z segundos\n" +
+                           "-l -> Ativa medicao de temperatura" +
                            "-t -> Ativa medicao de temperatura" +
                            "-u -> Ativa medicao de umidade"
 	);

@@ -9,6 +9,7 @@ module SensorC @safe(){
   	uses interface Packet;
 	uses interface Read<uint16_t> as ReadTemperature;
 	uses interface Read<uint16_t> as ReadHumidity;
+	uses interface Read<uint16_t> as ReadLight;
 }
 
 implementation {
@@ -19,6 +20,24 @@ implementation {
         Message* lastMessage;
 	error_t lastReadResult;
 	uint16_t lastReadData;
+
+	event void ReadTemperature.readDone(error_t result, uint16_t data)
+	{
+		lastReadResult = result;
+		lastReadData = data;
+	}
+	
+	event void ReadHumidity.readDone(error_t result, uint16_t data)
+	{
+		lastReadResult = result;
+		lastReadData = data;
+	}
+
+	event void ReadLight.readDone(error_t result, uint16_t data)
+	{
+		lastReadResult = result;
+		lastReadData = data;
+	}
 
 	int getNextBufferIndex() {
 		if (lastBufferIndexUsed >= MESSAGE_BUFFER_SIZE) {
@@ -32,6 +51,7 @@ implementation {
 		if (typeOfSensor == TEMPERATURE_DATA) {
 			call ReadTemperature.read();
 		} else if (typeOfSensor == LIGHTNESS_DATA) {
+			call ReadLight.read();
 		} else if (typeOfSensor == MOISTURE_DATA) {
 			call ReadHumidity.read();
 		} else if (typeOfSensor == LOCALITY_DATA) {
@@ -155,16 +175,4 @@ implementation {
 		decodeMessage(lastMessage);
   		
   	}
-
-	event void ReadTemperature.readDone(error_t result, uint16_t data)
-	{
-		lastReadResult = result;
-		lastReadData = data;
-	}
-	
-	event void ReadHumidity.readDone(error_t result, uint16_t data)
-	{
-		lastReadResult = result;
-		lastReadData = data;
-	}
 }

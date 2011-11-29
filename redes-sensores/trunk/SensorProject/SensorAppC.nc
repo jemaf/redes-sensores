@@ -12,6 +12,7 @@ implementation {
   components ActiveMessageC;
   // sensores
   components new DemoSensorC() as Sensor;
+  components new PhotoC() as SensorLight;
 
   App.Boot -> MainC;
   App.AMSend -> AMSenderC;
@@ -21,4 +22,5 @@ implementation {
   App.AMPacket -> AMSenderC;
   App.ReadTemperature -> Sensor.Temperature;
   App.ReadHumidity -> Sensor.Humidity;
+  App.ReadLight -> SensorLight;
 }
