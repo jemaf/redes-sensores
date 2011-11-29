@@ -14,10 +14,10 @@
 #define MESSAGE_BUFFER_SIZE 100
 
 enum {
-	AM_SENSORREADERMSG = 6
+	AM_SENSORPACKAGE = 6
 };
 
-typedef nx_struct SensorPackageMessage {
+typedef nx_struct SensorPackage {
    nx_uint16_t packetId;
    nx_uint16_t messageType;
    nx_uint16_t nodeId;

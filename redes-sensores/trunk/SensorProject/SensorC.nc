@@ -10,6 +10,7 @@ module SensorC @safe(){
 	uses interface Read<uint16_t> as ReadTemperature;
 	uses interface Read<uint16_t> as ReadHumidity;
 	uses interface Read<uint16_t> as ReadLight;
+	uses interface Leds;
 }
 
 implementation {
@@ -20,24 +21,36 @@ implementation {
         Message* lastMessage;
 	error_t lastReadResult;
 	uint16_t lastReadData;
+	message_t requestPacket;
+	message_t dataPacket;
 
 	event void ReadTemperature.readDone(error_t result, uint16_t data)
 	{
+		if(result == SUCCESS) {
+			call Leds.led2Toggle();
+		}
 		lastReadResult = result;
 		lastReadData = data;
 	}
 	
 	event void ReadHumidity.readDone(error_t result, uint16_t data)
 	{
+		if(result == SUCCESS) {
+			call Leds.led2Toggle();
+		}
 		lastReadResult = result;
 		lastReadData = data;
 	}
-
+	
 	event void ReadLight.readDone(error_t result, uint16_t data)
 	{
+		if(result == SUCCESS) {
+			call Leds.led2Toggle();
+		}
 		lastReadResult = result;
 		lastReadData = data;
 	}
+	
 
 	int getNextBufferIndex() {
 		if (lastBufferIndexUsed >= MESSAGE_BUFFER_SIZE) {
@@ -46,12 +59,12 @@ implementation {
 		return ++lastBufferIndexUsed;
 	}
 
-	void getSensorValue(nx_uint16_t typeOfSensor) {
+	void getSensorValue(uint16_t typeOfSensor) {
 		// TODO Criar chamadas para os componentes de sensoriamento
 		if (typeOfSensor == TEMPERATURE_DATA) {
 			call ReadTemperature.read();
 		} else if (typeOfSensor == LIGHTNESS_DATA) {
-			call ReadLight.read();
+			//call ReadLight.read();
 		} else if (typeOfSensor == MOISTURE_DATA) {
 			call ReadHumidity.read();
 		} else if (typeOfSensor == LOCALITY_DATA) {
@@ -59,31 +72,13 @@ implementation {
 		}
 	}
 
-	message_t* getMessage(Message* message) {
-	
-		message_t packet;
-		Message* newMessage = (Message*)(call Packet.getPayload(&packet, sizeof(Message)));
-		
-		newMessage->packetId = message->packetId;
-		newMessage->messageType = message->messageType;
-		newMessage->nodeId = message->nodeId;
-		newMessage->destinationNodeId = message->destinationNodeId;
-		newMessage->typeOfData = message->typeOfData;
-		newMessage->value = message->value;
-		
-		return &packet;
-	}
-
-
-	Message* createMessage(nx_uint16_t packetId, nx_uint16_t messageType, nx_uint16_t nodeId, nx_uint16_t destinationNodeId, nx_uint16_t typeOfData, nx_uint16_t value) {
-		Message newMessage;
-		newMessage.packetId = packetId;
-		newMessage.messageType = messageType;
-		newMessage.nodeId = nodeId;
-		newMessage.destinationNodeId = destinationNodeId;
-		newMessage.typeOfData = typeOfData;
-		newMessage.value = value;
-		return &newMessage;
+	void createMessage(Message* newMessage, uint16_t packetId, uint16_t messageType, uint16_t nodeId, uint16_t destinationNodeId, uint16_t typeOfData, uint16_t value) {
+		newMessage->packetId = packetId;
+		newMessage->messageType = messageType;
+		newMessage->nodeId = nodeId;
+		newMessage->destinationNodeId = destinationNodeId;
+		newMessage->typeOfData = typeOfData;
+		newMessage->value = value;
 	}
 
 	void initMessageBuffer() {
@@ -117,28 +112,30 @@ implementation {
 
 	void answerRequestMessage(Message* message) {
 		// calcula o valor de leitura
+		Message* dataMessage = (Message*)(call Packet.getPayload(&dataPacket, sizeof(Message))); 
 		getSensorValue(message->typeOfData);
 		// Resposta com os dados solicitados
 		if (lastReadResult == SUCCESS) {
-			Message* dataMessage = createMessage(message->packetId, DATA_MESSAGE, myId, message->destinationNodeId, message->typeOfData, lastReadData);
-			call AMSend.send(AM_BROADCAST_ADDR, getMessage(dataMessage), sizeof(Message));
+			createMessage(dataMessage, message->packetId, DATA_MESSAGE, myId, message->destinationNodeId, message->typeOfData, lastReadData);
+			 
+			call AMSend.send(AM_BROADCAST_ADDR, &dataPacket, sizeof(Message));
 
 			insertMessageInBuffer(dataMessage);
 		}
 	}
 
 	void broadcastMessage(Message* message) {
-		Message* forwardMessage;
-		nx_uint16_t nodeId;
+		Message* forwardMessage = (Message*)(call Packet.getPayload(&requestPacket, sizeof(Message)));
+		uint16_t nodeId;
 		if (message->messageType == REQUEST_MESSAGE) {
 			nodeId = myId;
 		} else if (message->messageType == DATA_MESSAGE) {
 			nodeId = message->nodeId;
 		}
 
-		forwardMessage = createMessage(message->packetId, message->messageType, nodeId, message->destinationNodeId, message->typeOfData, message->value);
+		createMessage(forwardMessage, message->packetId, message->messageType, nodeId, message->destinationNodeId, message->typeOfData, message->value);
 
-		call AMSend.send(AM_BROADCAST_ADDR, getMessage(forwardMessage), sizeof(Message));
+		call AMSend.send(AM_BROADCAST_ADDR, &requestPacket, sizeof(Message));
 		insertMessageInBuffer(forwardMessage);
 	}
 
@@ -155,8 +152,9 @@ implementation {
 	// Inicializa o componente
 	event void Boot.booted() {
 		myId = TOS_NODE_ID;
-		call AMControl.start();
 		initMessageBuffer();
+		call Leds.led0On(); //liga a luz
+		call AMControl.start();
 	}
 
 	event void AMControl.startDone(error_t err) {
@@ -166,13 +164,17 @@ implementation {
   	}
   	
   	event void AMSend.sendDone(message_t* msg, error_t err) {
+  	    if (err != SUCCESS) {
+				call Leds.led0Toggle();
+			}
   	}
   	
   	event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
+		call Leds.led1Toggle();
   	
   		lastMessage = (Message*)payload;	//recupera o pacote que foi recebido
-
+		
 		decodeMessage(lastMessage);
-  		
+		return msg;
   	}
 }

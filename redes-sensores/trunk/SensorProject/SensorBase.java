@@ -1,4 +1,6 @@
 import net.tinyos.message.*;
+import java.util.*;
+
 public class SensorBase {
     public static final short TOS_BCAST_ADDR = (short) 0xffff;
     public static final int REQUEST_MESSAGE = 0;
@@ -9,7 +11,7 @@ public class SensorBase {
     public static Integer timeCycle = 5;
     private static List<SensorType> sensorList = new ArrayList<SensorType>();
 
-    public static void main(String args[]) {
+    public static void main(String args[]) throws Exception{
         if (args.length < 3) {
             printHelpMenu();
             System.exit(0);
@@ -21,14 +23,14 @@ public class SensorBase {
         MoteIF mif = new MoteIF();
 
         //define qual objeto escutará as mensagens recebidas pelo SerialForwarder
-        mif.registerListener(new RootNode(),  new SensorHandler());
+        mif.registerListener(new SensorPackage(),  new SensorHandler());
 
         int timeToSleep = timeCycle;
 	for (int interaction = 1; interaction <= numberOfInteractions; interaction++) {
             System.out.println(String.format("Iniciando solicitacao numero %s", interaction));
             for (SensorType sensorType : sensorList) {
                 System.out.println(String.format("Requisitando leituras de %s", sensorType.getDescription()));
-                RootNode message = new RootNode();
+                SensorPackage message = new SensorPackage();
                 message.set_packetId(interaction);
                 message.set_messageType(SensorBase.REQUEST_MESSAGE);
                 message.set_nodeId(nodeId);
@@ -41,17 +43,26 @@ public class SensorBase {
                     mif.send(TOS_BCAST_ADDR, message);
                 }
                 catch(Exception exception) {
-                    System.err.println(String.format("Erro ao enviar mensagem %s solicitando medicao de %s", interaction, sensorType.getDescription()));
+                	System.err.println(String.format("Erro ao enviar mensagem %s solicitando medicao de %s", interaction, sensorType.getDescription()));
+                	throw exception;
                 }
             }
-            Thread.sleep(timeToSleep * 1000);
-            timeToSleep += timeCycle;
+            
+            try {
+            	Thread.sleep(timeToSleep * 1000);
+            	timeToSleep += timeCycle;
+            }catch(Exception ex) {
+            	System.err.println("Erro no sleep da thread.");
+            	System.exit(0);
+            }
         }
-
+	
+		mif.deregisterListener(new SensorPackage(),  new SensorHandler());
+		System.exit(0);
     }
 
     private static Integer decodeStringIntoInt(String id) {
-        if (id != null && id.length > 0) {
+        if (id != null && id.length() > 0) {
             try {
                 return Integer.parseInt(id);
             } catch (Exception exception) {
@@ -103,12 +114,12 @@ public class SensorBase {
     }
     private static void printHelpMenu() {
         System.out.println("Para executar o no base da rede, forneca os seguintes argumentos:\n\n"+
-                           "java SensorBase -iX -vY -t -u\n\n" +
+                           "java SensorBase -iX -vY -t -u -l\n\n" +
                            "-iX -> (Obrigatorio) Inicializa o no com identificar inteiro X\n" +
                            "-nY -> Inicializa a base com o numero de Y interacoes\n" +
                            "-vZ -> Inicializa o no com tempo de rotacao de Z segundos\n" +
-                           "-l -> Ativa medicao de temperatura" +
-                           "-t -> Ativa medicao de temperatura" +
+                           "-l -> Ativa medicao de temperatura\n" +
+                           "-t -> Ativa medicao de temperatura\n" +
                            "-u -> Ativa medicao de umidade"
 	);
     }
@@ -136,7 +147,7 @@ public class SensorBase {
         public static SensorType getById(int id) {
             SensorType[] types = SensorType.values();
             for (SensorType type : types) {
-                if (type.getId == id) {
+                if (type.getId() == id) {
                     return type;
                 }
             }
@@ -147,12 +158,15 @@ public class SensorBase {
 
     public static class SensorHandler implements MessageListener {
         public void messageReceived(int to, Message packet) {
-            if (!(packet instanceof RootNode)) {
+            if (!(packet instanceof SensorPackage)) {
                 System.err.println("Recebida mensagem em formato nao suportado... Abortando!");
                 System.exit(0);
             }
 
-            RootNode message = (RootNode) packet;
+            SensorPackage message = (SensorPackage) packet;
+            
+            System.out.println("Pacote: " + message.get_packetId() + " recebido");
+            
             if (message != null && message.get_destinationNodeId() == nodeId) {
                 SensorType typeOfMessage = SensorType.getById(message.get_typeOfData());
                 if (typeOfMessage == null) {
@@ -161,8 +175,9 @@ public class SensorBase {
                 }
 
                 if (message.get_messageType() == SensorBase.DATA_MESSAGE) {
-                    System.out.println(String.format("Recebida resposta da solicitacao %s, vinda do no %s, medindo o valor %s de %s", message.get_packetId(), message.get_nodeId(), decodeValue(message.get_value(), typeOfMessage), typeOfMessage.getDescription));
+                    System.out.println(String.format("Recebida resposta da solicitacao %s, vinda do no %s, medindo o valor %s de %s", message.get_packetId(), message.get_nodeId(), decodeValue(message.get_value(), typeOfMessage), typeOfMessage.getDescription()));
                 } else if (message.get_messageType() == SensorBase.REQUEST_MESSAGE) {
+                	System.out.println("Pacote: " + message.get_packetId() + " request recebido");
                     // Nao faz nada quando recebe uma requisicao de leitura
                 } else {
                     System.err.println("Recebido um tipo de pacote nao reconhecido... Abortando!");
